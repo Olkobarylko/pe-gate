@@ -76,6 +76,8 @@ module.exports = async (req, res) => {
             dealtile2value: deal.dealTile2Value,
             dealtile3key: deal.dealTile3Key,
             dealtile3value: deal.dealTile3Value,
+            dealoverviewcontent: deal.dealOverviewContent,
+            dealbackgroundimg: deal.dealBackgroundImg,
           },
         };
 
