@@ -103,6 +103,7 @@ module.exports = async (req, res) => {
       createdItemsCount: createdItems.length,
       createdItems,
       errors,
+      deals,
     });
   } catch (error) {
     console.error('Глобальна помилка:', error.response?.data || error.message);
