@@ -122,7 +122,7 @@ module.exports = async (req, res) => {
           'dealbackgroundimg-2': deal.dealBackgroundImg,
 
           // важливо: кастомне поле в колекції Webflow з API Name = "dealid"
-          dealid: deal.id,
+          dealid: dealId,
         };
 
         const existingItem = dealId ? itemsByDealId.get(dealId) : null;
