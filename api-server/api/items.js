@@ -2,7 +2,7 @@ const axios = require("axios");
 console.log("olko test");
 // Your API Token and URL
 const apiToken =
-  "TVRrMU16YzBPREl3TVRwVGZIeFlaSDF3UDNCaUlVZzFkQ2hUYTFCMkpIeHJVWEoxYlVjNVRsUTJWa1ptWUQ1ZVdXTWw=";
+  "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
 const apiUrl = "https://app.pe-gate.com/api/v1/client-admins/deals";
 
 module.exports = async (req, res) => {
