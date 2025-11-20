@@ -6,7 +6,6 @@ const apiUrl = 'https://app.pe-gate.com/api/v1/client-admins/deals';
 
 module.exports = async (req, res) => {
   try {
-    // Виконання запиту до API
     const response = await axios.get(apiUrl, {
       headers: {
         'Accept': 'application/json',
@@ -15,11 +14,12 @@ module.exports = async (req, res) => {
       },
     });
 
-    // Повернення отриманих даних
+    // Вивести отриману відповідь для перевірки
+    console.log(response.data);
+
     res.status(200).json(response.data);
   } catch (error) {
-    // Обробка помилок
-    console.error(error);
+    console.error(error);  // Покажемо помилки для зручності
     res.status(500).json({ error: 'Щось пішло не так' });
   }
 };
