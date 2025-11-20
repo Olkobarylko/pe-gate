@@ -71,6 +71,7 @@ module.exports = async (req, res) => {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          "User-Agent": "PostmanRuntime/7.32.3",
           Authorization: `Bearer ${PE_GATE_API_TOKEN.trim()}`,
         },
       }
