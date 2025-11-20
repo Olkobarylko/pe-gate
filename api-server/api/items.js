@@ -1,25 +1,15 @@
 const axios = require('axios');
 
-// Ваш API Token і URL
-const apiToken = 'MTk1Mzc0ODIwMTpGLz5ySnw5MF9XRGw6dTdvUTdQJEBUJVFaTj0wIUhuUl8pSTBSO2k2';
-const apiUrl = 'https://app.pe-gate.com/api/v1/client-admins/deals';
-
 module.exports = async (req, res) => {
   try {
-    const response = await axios.get(apiUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiToken}`,
-      },
-    });
+    // Виконуємо GET запит до API
+    const response = await axios.get('https://dog.ceo/api/breeds/image/random');
 
-    // Вивести отриману відповідь для перевірки
-    console.log(response.data);
-
+    // Виводимо отримані факти
     res.status(200).json(response.data);
   } catch (error) {
-    console.error(error);  // Покажемо помилки для зручності
-    res.status(500).json({ error: 'Щось пішло не так' });
+    // Обробка помилок
+    console.error(error);
+    res.status(500).json({ error: 'Не вдалося отримати дані з API' });
   }
 };
