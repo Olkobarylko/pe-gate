@@ -1,15 +1,26 @@
 const axios = require('axios');
 
-module.exports = async (req, res) => {
-  try {
-    // Виконуємо GET запит до API
-    const response = await axios.get('https://dog.ceo/api/breeds/image/random');
+// Ваш API Token і URL
+const apiToken = 'MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl';
+const apiUrl = 'https://app.pe-gate.com/api/v1/client-admins/deals';
 
-    // Виводимо отримані факти
+module.exports = async (req, res) => {
+    console.log("olko test");
+  try {
+    const response = await axios.get(apiUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiToken}`,
+      },
+    });
+
+    // Вивести отриману відповідь для перевірки
+    console.log(response.data);
+
     res.status(200).json(response.data);
   } catch (error) {
-    // Обробка помилок
-    console.error(error);
-    res.status(500).json({ error: 'Не вдалося отримати дані з API' });
+    console.error(error);  // Покажемо помилки для зручності
+    res.status(500).json({ error: 'Щось пішло не так' });
   }
 };
