@@ -13,7 +13,6 @@ const PE_GATE_API_TOKEN =
 
 // api/sync-deals-to-webflow.js
 
-const axios = require("axios");
 
 // Базовые URL Webflow v2
 const WEBFLOW_BASE = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}`;
