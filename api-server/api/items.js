@@ -2,7 +2,7 @@ const axios = require("axios");
 console.log("olko test");
 // Your API Token and URL
 const apiToken =
-  "TVRrMU16YzBPREl3TVRwR0x6NXlTbnc1TUY5WFJHdzZkVGR2VVRkUUpFQlVKVkZhVGowd0lVaHVVbDhwU1RCU08yazI";
+  "MTk1Mzc0ODIwMTpGLz5ySnw5MF9XRGw6dTdvUTdQJEBUJVFaTj0wIUhuUl8pSTBSO2k2";
 const apiUrl = "https://app.pe-gate.com/api/v1/client-admins/deals";
 
 module.exports = async (req, res) => {
@@ -12,7 +12,8 @@ module.exports = async (req, res) => {
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiToken}`,
+        "User-Agent": "PostmanRuntime/7.32.3",
+        Authorization: `Bearer MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl`,
       },
     });
 
