@@ -1,26 +1,28 @@
 // api/sync-deals-to-webflow.js
 
-const axios = require('axios');
+const axios = require("axios");
 
 // ID колекції Webflow
-const WEBFLOW_COLLECTION_ID = '691f618c34b4f8127ecf1703';
+const WEBFLOW_COLLECTION_ID = "691f618c34b4f8127ecf1703";
 
 // ТВОЇ ТОКЕНИ (як ти й давав)
-const WEBFLOW_API_TOKEN = '27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53';
-const PE_GATE_API_TOKEN = 'MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl';
+const WEBFLOW_API_TOKEN =
+  "27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53";
+const PE_GATE_API_TOKEN =
+  "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
 
-// Webflow v2 endpoint для CMS айтемів
+// Webflow v2 endpoint для CMS айтемів (стейджд)
 const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
 
 // Проста функція для slug
 function slugify(str) {
-  if (!str) return '';
+  if (!str) return "";
   return String(str)
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .substring(0, 60);
 }
 
@@ -35,7 +37,7 @@ async function fetchAllWebflowItems() {
       params: { limit, offset },
       headers: {
         Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-        Accept: 'application/json',
+        Accept: "application/json",
       },
     });
 
@@ -55,12 +57,12 @@ module.exports = async (req, res) => {
   try {
     // 1. Тягнемо дані з твого API
     const apiResponse = await axios.get(
-      'https://app.pe-gate.com/api/v1/client-admins/deals',
+      "https://app.pe-gate.com/api/v1/client-admins/deals",
       {
         headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'PostmanRuntime/7.32.3',
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "User-Agent": "PostmanRuntime/7.32.3",
           Authorization: `Bearer ${PE_GATE_API_TOKEN.trim()}`,
         },
       }
@@ -75,7 +77,7 @@ module.exports = async (req, res) => {
 
     if (!Array.isArray(deals)) {
       return res.status(500).json({
-        error: 'Очікував масив deals від API',
+        error: "Очікував масив deals від API",
         raw: apiResponse.data,
       });
     }
@@ -99,13 +101,13 @@ module.exports = async (req, res) => {
     // 3. Upsert по кожному deal
     for (const deal of deals) {
       try {
-        const dealId = String(deal.id ?? '');
-        const name = deal.dealName || deal.name || 'Deal';
+        const dealId = String(deal.id ?? "");
+        const name = deal.dealName || deal.name || "Deal";
 
         // slug прив’язуємо до dealId, щоб був стабільний
         const slugBase =
-          slugify(deal.dealName || deal.name || `deal-${dealId}`) || 'deal';
-        const slug = `${slugBase}-${dealId}`.replace(/-+$/g, '');
+          slugify(deal.dealName || deal.name || `deal-${dealId}`) || "deal";
+        const slug = `${slugBase}-${dealId}`.replace(/-+$/g, "");
 
         const fieldData = {
           name,
@@ -119,7 +121,7 @@ module.exports = async (req, res) => {
           dealtile3key: deal.dealTile3Key,
           dealtile3value: deal.dealTile3Value,
           dealoverviewcontent: deal.dealOverviewContent,
-          'dealbackgroundimg-2': deal.dealBackgroundImg,
+          "dealbackgroundimg-2": deal.dealBackgroundImg,
 
           // важливо: кастомне поле в колекції Webflow з API Name = "dealid"
           dealid: dealId,
@@ -128,33 +130,24 @@ module.exports = async (req, res) => {
         const existingItem = dealId ? itemsByDealId.get(dealId) : null;
 
         if (existingItem) {
-          // 3а. Айтем вже є — ОНОВЛЮЄМО ЧЕРЕЗ PATCH /collections/:collection_id/items
+          // 3а. Айтем вже є — ОНОВЛЮЄМО ЧЕРЕЗ PATCH /collections/{collection_id}/items/{item_id}
+          const updateUrl = `${webflowApiUrl}/${existingItem.id}`;
+
           const patchBody = {
-            items: [
-              {
-                id: existingItem.id,
-                isArchived: false,
-                isDraft: false,
-                fieldData,
-              },
-            ],
+            isArchived: false,
+            isDraft: false,
+            fieldData,
           };
 
-          const webflowResponse = await axios.patch(webflowApiUrl, patchBody, {
+          const webflowResponse = await axios.patch(updateUrl, patchBody, {
             headers: {
               Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
+              "Content-Type": "application/json",
+              Accept: "application/json",
             },
           });
 
-          const respData = webflowResponse.data;
-
-          if (Array.isArray(respData.items)) {
-            updatedItems.push(...respData.items);
-          } else {
-            updatedItems.push(respData);
-          }
+          updatedItems.push(webflowResponse.data);
         } else {
           // 3б. Нема такого dealid — створюємо новий айтем (POST /collections/:collection_id/items)
           const createBody = {
@@ -166,8 +159,8 @@ module.exports = async (req, res) => {
           const webflowResponse = await axios.post(webflowApiUrl, createBody, {
             headers: {
               Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
+              "Content-Type": "application/json",
+              Accept: "application/json",
             },
           });
 
@@ -175,7 +168,7 @@ module.exports = async (req, res) => {
         }
       } catch (err) {
         console.error(
-          'Помилка створення/оновлення айтема в Webflow:',
+          "Помилка створення/оновлення айтема в Webflow:",
           err.response?.data || err.message
         );
         errors.push({
@@ -186,7 +179,7 @@ module.exports = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: 'Синхронізація з Webflow завершена (upsert через PATCH)',
+      message: "Синхронізація з Webflow завершена (upsert)",
       totalDeals: deals.length,
       createdItemsCount: createdItems.length,
       updatedItemsCount: updatedItems.length,
@@ -195,10 +188,10 @@ module.exports = async (req, res) => {
       errors,
     });
   } catch (error) {
-    console.error('Глобальна помилка:', error.response?.data || error.message);
+    console.error("Глобальна помилка:", error.response?.data || error.message);
 
     return res.status(500).json({
-      error: 'Щось пішло не так!',
+      error: "Щось пішло не так!",
       details: error.response?.data || error.message,
     });
   }
