@@ -20,6 +20,7 @@ module.exports = async (req, res) => {
 
     res.status(200).json(response.data);
   } catch (error) {
+     console.log("error olko");
     console.error(error);  // Покажемо помилки для зручності
     res.status(500).json({ error: 'Щось пішло не так' });
   }
