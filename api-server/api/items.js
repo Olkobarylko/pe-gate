@@ -39,6 +39,7 @@ module.exports = async (req, res) => {
       headers: {
         Authorization: `Bearer ${webflowToken}`,
         'Content-Type': 'application/json',
+        'User-Agent': 'PostmanRuntime/7.32.3',
         Accept: 'application/json',
       },
     });
