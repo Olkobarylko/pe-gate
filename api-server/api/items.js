@@ -23,6 +23,8 @@ module.exports = async (req, res) => {
     // 2. Формуємо об'єкт для оновлення Webflow CMS
     const dealItemData = {
       fields: {
+        name: dealData.dealName,
+        slug : dealData.dealName,
         dealName: dealData.dealName,
         dealDescription: dealData.dealDescription,
         dealTile1Key: dealData.dealTile1Key,
