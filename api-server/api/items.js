@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 // Ваш API Token і URL
-const apiToken = 'TVRrMU16YzBPREl3TVRwVGZIeFlaSDF3UDNCaUlVZzFkQ2hUYTFCMkpIeHJVWEoxYlVjNVRsUTJWa1ptWUQ1ZVdXTWwg';
+const apiToken = 'TVRrMU16YzBPREl3TVRwR0x6NXlTbnc1TUY5WFJHdzZkVGR2VVRkUUpFQlVKVkZhVGowd0lVaHVVbDhwU1RCU08yazIg';
 const apiUrl = 'https://app.pe-gate.com/api/v1/client-admins/deals';
 
 module.exports = async (req, res) => {
