@@ -4,7 +4,7 @@ const axios = require('axios');
 const webflowToken = '27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53';
 // Ваш collection_id для Webflow колекції
 const collectionId = '68c1e87046098c5c59d2f4d8'; // Заміни на реальний collection_id
-const webflowApiUrl = `https://api.webflow.com/collections/${collectionId}/items`;
+const webflowApiUrl = `https://api.webflow.com/v2/collections/${collectionId}/items`;
 
 module.exports = async (req, res) => {
   try {
