@@ -1,27 +1,18 @@
+// api/sync-deals-to-webflow.js
+
 const axios = require('axios');
 
 // ID колекції Webflow
 const WEBFLOW_COLLECTION_ID = '691f618c34b4f8127ecf1703';
 
-// ⚠️ СЮДИ ВСТАВ СВОЇ ТОКЕНИ БЕЗ "Bearer " і БЕЗ ПЕРЕНОСІВ РЯДКІВ
+// ТВОЇ ТОКЕНИ (як ти й давав)
 const WEBFLOW_API_TOKEN = '27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53';
 const PE_GATE_API_TOKEN = 'MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl';
 
-// Базовий URL Webflow v2
+// Webflow v2 endpoint
 const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
 
-// ⚠️ Заміни ці ID полів на ті, що в API Reference колекції
-const FIELD_IDS = {
-  dealName: 'deal-name',
-  dealDescription: 'deal-description',
-  dealTile1Key: 'deal-tile-1-key',
-  dealTile1Value: 'deal-tile-1-value',
-  dealTile2Key: 'deal-tile-2-key',
-  dealTile2Value: 'deal-tile-2-value',
-  dealTile3Key: 'deal-tile-3-key',
-  dealTile3Value: 'deal-tile-3-value',
-};
-
+// Проста функція для slug
 function slugify(str) {
   if (!str) return '';
   return String(str)
@@ -50,6 +41,7 @@ module.exports = async (req, res) => {
 
     let deals = apiResponse.data;
 
+    // Якщо бек повертає { data: [...] }
     if (!Array.isArray(deals) && Array.isArray(deals?.data)) {
       deals = deals.data;
     }
@@ -64,8 +56,10 @@ module.exports = async (req, res) => {
     const createdItems = [];
     const errors = [];
 
+    // 2. Створюємо айтеми в Webflow (тільки name + slug)
     for (const deal of deals) {
       try {
+        // Підлаштуй під реальні поля твого deals API:
         const name = deal.dealName || deal.name || 'Deal';
         const slugBase = slugify(deal.dealName || deal.name || `deal-${Date.now()}`);
         const slug = `${slugBase}-${deal.id || ''}`.replace(/-+$/g, '');
@@ -74,16 +68,9 @@ module.exports = async (req, res) => {
           isArchived: false,
           isDraft: false,
           fieldData: {
+            // стандартні поля Webflow (Name + Slug)
             name,
             slug,
-            [FIELD_IDS.dealName]: deal.dealName,
-            [FIELD_IDS.dealDescription]: deal.dealDescription,
-            [FIELD_IDS.dealTile1Key]: deal.dealTile1Key,
-            [FIELD_IDS.dealTile1Value]: deal.dealTile1Value,
-            [FIELD_IDS.dealTile2Key]: deal.dealTile2Key,
-            [FIELD_IDS.dealTile2Value]: deal.dealTile2Value,
-            [FIELD_IDS.dealTile3Key]: deal.dealTile3Key,
-            [FIELD_IDS.dealTile3Value]: deal.dealTile3Value,
           },
         };
 
