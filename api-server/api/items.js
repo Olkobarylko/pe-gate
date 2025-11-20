@@ -11,10 +11,10 @@ const WEBFLOW_API_TOKEN =
 const PE_GATE_API_TOKEN =
   "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
 
-// Webflow v2 endpoint для CMS айтемів (стейджд)
+// Базовый URL Webflow v2 для CMS айтемов (staged items)
 const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
 
-// Проста функція для slug
+// Утилита для slug
 function slugify(str) {
   if (!str) return "";
   return String(str)
@@ -26,7 +26,7 @@ function slugify(str) {
     .substring(0, 60);
 }
 
-// Тягнемо ВСІ айтеми з колекції (з урахуванням пагінації)
+// Тянем ВСЕ айтемы с коллекции (с пагинацией)
 async function fetchAllWebflowItems() {
   const allItems = [];
   let offset = 0;
@@ -53,16 +53,16 @@ async function fetchAllWebflowItems() {
   return allItems;
 }
 
+// Основной handler (например, Next.js /api route)
 module.exports = async (req, res) => {
   try {
-    // 1. Тягнемо дані з твого API
+    // 1. Тянем данные из внешнего API (все deals)
     const apiResponse = await axios.get(
       "https://app.pe-gate.com/api/v1/client-admins/deals",
       {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          "User-Agent": "PostmanRuntime/7.32.3",
           Authorization: `Bearer ${PE_GATE_API_TOKEN.trim()}`,
         },
       }
@@ -70,25 +70,25 @@ module.exports = async (req, res) => {
 
     let deals = apiResponse.data;
 
-    // Якщо бек повертає { data: [...] }
+    // Если бек вернул { data: [...] }
     if (!Array.isArray(deals) && Array.isArray(deals?.data)) {
       deals = deals.data;
     }
 
     if (!Array.isArray(deals)) {
       return res.status(500).json({
-        error: "Очікував масив deals від API",
+        error: "Ожидался массив deals от внешнего API",
         raw: apiResponse.data,
       });
     }
 
-    // 2. Тягнемо всі айтеми з Webflow і будуємо мапу по кастомному полю dealid
+    // 2. Тянем все айтемы из Webflow и строим мапу по кастомному полю dealid
     const existingItems = await fetchAllWebflowItems();
 
-    // мапа: dealid (string) -> item
+    // Map: dealid(string) -> item
     const itemsByDealId = new Map();
     for (const item of existingItems) {
-      const dealIdValue = item.fieldData?.dealid;
+      const dealIdValue = item.fieldData?.dealid; // тут важно, чтобы API Name поля в Webflow был именно "dealid"
       if (dealIdValue != null) {
         itemsByDealId.set(String(dealIdValue), item);
       }
@@ -98,20 +98,34 @@ module.exports = async (req, res) => {
     const updatedItems = [];
     const errors = [];
 
-    // 3. Upsert по кожному deal
+    // 3. Проходим по каждому deal и делаем upsert
     for (const deal of deals) {
+      const dealId = String(deal.id ?? "");
+
+      if (!dealId) {
+        // Если у deal нет id — пропускаем
+        errors.push({
+          deal,
+          error: "Пропущен deal без id",
+        });
+        continue;
+      }
+
       try {
-        const dealId = String(deal.id ?? "");
         const name = deal.dealName || deal.name || "Deal";
 
-        // slug прив’язуємо до dealId, щоб був стабільний
+        // slug стабильно привязан к dealId
         const slugBase =
           slugify(deal.dealName || deal.name || `deal-${dealId}`) || "deal";
         const slug = `${slugBase}-${dealId}`.replace(/-+$/g, "");
 
+        // fieldData — имена полей ДОЛЖНЫ 1-в-1 совпадать с API Name в Webflow
         const fieldData = {
+          // стандартные поля
           name,
           slug,
+
+          // твои кастомные поля (проверь API Name в Webflow CMS!)
           dealname: deal.dealName,
           dealdescription: deal.dealDescription,
           dealtile1key: deal.dealTile1Key,
@@ -123,14 +137,14 @@ module.exports = async (req, res) => {
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
 
-          // важливо: кастомне поле в колекції Webflow з API Name = "dealid"
+          // поле, по которому мы матчимся
           dealid: dealId,
         };
 
-        const existingItem = dealId ? itemsByDealId.get(dealId) : null;
+        const existingItem = itemsByDealId.get(dealId);
 
         if (existingItem) {
-          // 3а. Айтем вже є — ОНОВЛЮЄМО ЧЕРЕЗ PATCH /collections/{collection_id}/items/{item_id}
+          // 3а. Айтем уже есть — ОБНОВЛЯЕМ (PATCH /collections/{collection_id}/items/{item_id})
           const updateUrl = `${webflowApiUrl}/${existingItem.id}`;
 
           const patchBody = {
@@ -147,9 +161,12 @@ module.exports = async (req, res) => {
             },
           });
 
-          updatedItems.push(webflowResponse.data);
+          updatedItems.push({
+            dealId,
+            itemId: webflowResponse.data.id,
+          });
         } else {
-          // 3б. Нема такого dealid — створюємо новий айтем (POST /collections/:collection_id/items)
+          // 3б. Нет айтема с таким dealid — СОЗДАЁМ (POST /collections/{collection_id}/items)
           const createBody = {
             isArchived: false,
             isDraft: false,
@@ -164,22 +181,25 @@ module.exports = async (req, res) => {
             },
           });
 
-          createdItems.push(webflowResponse.data);
+          createdItems.push({
+            dealId,
+            itemId: webflowResponse.data.id,
+          });
         }
       } catch (err) {
         console.error(
-          "Помилка створення/оновлення айтема в Webflow:",
+          "Ошибка при создании/обновлении айтема в Webflow:",
           err.response?.data || err.message
         );
         errors.push({
-          dealId: deal.id,
+          dealId,
           error: err.response?.data || err.message,
         });
       }
     }
 
     return res.status(200).json({
-      message: "Синхронізація з Webflow завершена (upsert)",
+      message: "Синхронизация с Webflow завершена (upsert по dealid)",
       totalDeals: deals.length,
       createdItemsCount: createdItems.length,
       updatedItemsCount: updatedItems.length,
@@ -188,10 +208,10 @@ module.exports = async (req, res) => {
       errors,
     });
   } catch (error) {
-    console.error("Глобальна помилка:", error.response?.data || error.message);
+    console.error("Глобальная ошибка:", error.response?.data || error.message);
 
     return res.status(500).json({
-      error: "Щось пішло не так!",
+      error: "Что-то пошло не так при синхронизации!",
       details: error.response?.data || error.message,
     });
   }
