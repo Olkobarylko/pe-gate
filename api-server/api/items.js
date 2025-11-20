@@ -71,6 +71,7 @@ module.exports = async (req, res) => {
             // стандартні поля Webflow (Name + Slug)
             name,
             slug,
+            dealname: deal.dealName
           },
         };
 
