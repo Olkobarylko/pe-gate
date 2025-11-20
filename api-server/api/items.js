@@ -11,11 +11,12 @@ const WEBFLOW_API_TOKEN =
 const PE_GATE_API_TOKEN =
   "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
 
-// Базові URL-и
-const webflowItemsUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
-const webflowItemsLiveUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items/live`;
+// Базовый URL Webflow v2 для CMS айтемов (staged items)
+const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items/live`;
 
-// slugify як було
+
+
+// Утилита для slug
 function slugify(str) {
   if (!str) return "";
   return String(str)
@@ -27,14 +28,14 @@ function slugify(str) {
     .substring(0, 60);
 }
 
-// Тягнемо ВСІ айтеми (можна зі звичайного /items)
+// Тянем ВСЕ айтемы с коллекции (с пагинацией)
 async function fetchAllWebflowItems() {
   const allItems = [];
   let offset = 0;
   const limit = 100;
 
   while (true) {
-    const resp = await axios.get(webflowItemsUrl, {
+    const resp = await axios.get(webflowApiUrl, {
       params: { limit, offset },
       headers: {
         Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
@@ -54,9 +55,10 @@ async function fetchAllWebflowItems() {
   return allItems;
 }
 
+// Основной handler (например, Next.js /api route)
 module.exports = async (req, res) => {
   try {
-    // 1. Тягнемо всі deals
+    // 1. Тянем данные из внешнего API (все deals)
     const apiResponse = await axios.get(
       "https://app.pe-gate.com/api/v1/client-admins/deals",
       {
@@ -70,23 +72,26 @@ module.exports = async (req, res) => {
     );
 
     let deals = apiResponse.data;
+
+    // Если бек вернул { data: [...] }
     if (!Array.isArray(deals) && Array.isArray(deals?.data)) {
       deals = deals.data;
     }
 
     if (!Array.isArray(deals)) {
       return res.status(500).json({
-        error: "Ожидался массив deals от API",
+        error: "Ожидался массив deals от внешнего API",
         raw: apiResponse.data,
       });
     }
 
-    // 2. Тянем існуючі айтеми й мапим по dealid
+    // 2. Тянем все айтемы из Webflow и строим мапу по кастомному полю dealid
     const existingItems = await fetchAllWebflowItems();
-    const itemsByDealId = new Map();
 
+    // Map: dealid(string) -> item
+    const itemsByDealId = new Map();
     for (const item of existingItems) {
-      const dealIdValue = item.fieldData?.dealid;
+      const dealIdValue = item.fieldData?.dealid; // тут важно, чтобы API Name поля в Webflow был именно "dealid"
       if (dealIdValue != null) {
         itemsByDealId.set(String(dealIdValue), item);
       }
@@ -96,11 +101,12 @@ module.exports = async (req, res) => {
     const updatedItems = [];
     const errors = [];
 
-    // 3. Upsert + одразу live
+    // 3. Проходим по каждому deal и делаем upsert
     for (const deal of deals) {
       const dealId = String(deal.id ?? "");
 
       if (!dealId) {
+        // Если у deal нет id — пропускаем
         errors.push({
           deal,
           error: "Пропущен deal без id",
@@ -111,13 +117,18 @@ module.exports = async (req, res) => {
       try {
         const name = deal.dealName || deal.name || "Deal";
 
+        // slug стабильно привязан к dealId
         const slugBase =
           slugify(deal.dealName || deal.name || `deal-${dealId}`) || "deal";
         const slug = `${slugBase}-${dealId}`.replace(/-+$/g, "");
 
+        // fieldData — имена полей ДОЛЖНЫ 1-в-1 совпадать с API Name в Webflow
         const fieldData = {
+          // стандартные поля
           name,
           slug,
+
+          // твои кастомные поля (проверь API Name в Webflow CMS!)
           dealname: deal.dealName,
           dealdescription: deal.dealDescription,
           dealtile1key: deal.dealTile1Key,
@@ -128,14 +139,16 @@ module.exports = async (req, res) => {
           dealtile3value: deal.dealTile3Value,
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
+
+          // поле, по которому мы матчимся
           dealid: dealId,
         };
 
         const existingItem = itemsByDealId.get(dealId);
 
         if (existingItem) {
-          // 🔹 ОНОВЛЕННЯ LIVE-айтема
-          const updateUrl = `${webflowItemsLiveUrl}/${existingItem.id}`;
+          // 3а. Айтем уже есть — ОБНОВЛЯЕМ (PATCH /collections/{collection_id}/items/{item_id})
+          const updateUrl = `${webflowApiUrl}/${existingItem.id}`;
 
           const patchBody = {
             isArchived: false,
@@ -156,24 +169,20 @@ module.exports = async (req, res) => {
             itemId: webflowResponse.data.id,
           });
         } else {
-          // 🔹 СТВОРЕННЯ НОВОГО LIVE-айтема
+          // 3б. Нет айтема с таким dealid — СОЗДАЁМ (POST /collections/{collection_id}/items)
           const createBody = {
             isArchived: false,
             isDraft: false,
             fieldData,
           };
 
-          const webflowResponse = await axios.post(
-            webflowItemsLiveUrl,
-            createBody,
-            {
-              headers: {
-                Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-            }
-          );
+          const webflowResponse = await axios.post(webflowApiUrl, createBody, {
+            headers: {
+              Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          });
 
           createdItems.push({
             dealId,
@@ -182,7 +191,7 @@ module.exports = async (req, res) => {
         }
       } catch (err) {
         console.error(
-          "Ошибка при создании/обновлении LIVE-айтема в Webflow:",
+          "Ошибка при создании/обновлении айтема в Webflow:",
           err.response?.data || err.message
         );
         errors.push({
@@ -193,7 +202,7 @@ module.exports = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: "Синхронизация с Webflow завершена (upsert + сразу live)",
+      message: "Синхронизация с Webflow завершена (upsert по dealid)",
       totalDeals: deals.length,
       createdItemsCount: createdItems.length,
       updatedItemsCount: updatedItems.length,
