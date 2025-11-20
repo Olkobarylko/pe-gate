@@ -13,6 +13,7 @@ module.exports = async (req, res) => {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        'User-Agent': 'PostmanRuntime/7.32.3',
         'Authorization': 'Bearer MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl',
       },
     });
