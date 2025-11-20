@@ -44,14 +44,14 @@ module.exports = async (req, res) => {
 
           // ДАЛІ — ПОЛЯ З API Reference КОЛЕКЦІЇ
           // !!!! заміни ці ключі на реальні, які бачиш у Webflow API Reference
-          'deal-name': deal.dealName,
-          'deal-description': deal.dealDescription,
-          'deal-tile-1-key': deal.dealTile1Key,
-          'deal-tile-1-value': deal.dealTile1Value,
-          'deal-tile-2-key': deal.dealTile2Key,
-          'deal-tile-2-value': deal.dealTile2Value,
-          'deal-tile-3-key': deal.dealTile3Key,
-          'deal-tile-3-value': deal.dealTile3Value,
+          'dealName': deal.dealName,
+          'dealDescription': deal.dealDescription,
+          'dealTile1Key': deal.dealTile1Key,
+          'dealTile1Value': deal.dealTile1Value,
+          'dealTile2Key': deal.dealTile2Key,
+          'dealTile2Value': deal.dealTile2Value,
+          'dealTile3Key': deal.dealTile3Key,
+          'dealTile3Value': deal.dealTile3Value,
         },
       };
 
