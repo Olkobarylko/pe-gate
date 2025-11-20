@@ -1,15 +1,52 @@
+// api/sync-deals-to-webflow.js (наприклад для Vercel)
+
 const axios = require('axios');
 
-const COLLECTION_ID = '691f618c34b4f8127ecf1703';
+// !!! ВАЖЛИВО: ці значення винеси в Environment Variables на Vercel
+const WEBFLOW_COLLECTION_ID = process.env.WEBFLOW_COLLECTION_ID || '691f618c34b4f8127ecf1703';
+const WEBFLOW_API_TOKEN = process.env.WEBFLOW_API_TOKEN; // твій Webflow token
+const PE_GATE_API_TOKEN = process.env.PE_GATE_API_TOKEN; // токен до https://app.pe-gate.com
 
-// ТВОЇ токени прямо в коді
-const webflowToken = '27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53';
-const peGateToken = 'MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl';
+// Базовий URL Webflow v2
+const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
 
-const webflowApiUrl = `https://api.webflow.com/v2/collections/${COLLECTION_ID}/items`;
+// Мапа ID полів Webflow колекції
+// ⚠️ ЗАМІНИ ці значення на ТІ, ЩО В ТЕБЕ В API Reference колекції
+const FIELD_IDS = {
+  dealName: 'deal-name',
+  dealDescription: 'deal-description',
+  dealTile1Key: 'deal-tile-1-key',
+  dealTile1Value: 'deal-tile-1-value',
+  dealTile2Key: 'deal-tile-2-key',
+  dealTile2Value: 'deal-tile-2-value',
+  dealTile3Key: 'deal-tile-3-key',
+  dealTile3Value: 'deal-tile-3-value',
+};
+
+// Проста функція для генерації slug
+function slugify(str) {
+  if (!str) return '';
+  return String(str)
+    .toLowerCase()
+    .normalize('NFD') // прибрати діакритику
+    .replace(/[\u0300-\u036f]/g, '') // ще трохи діакритики
+    .replace(/[^a-z0-9]+/g, '-') // все не-латиницю/цифри в "-"
+    .replace(/^-+|-+$/g, '') // обрізати тире з країв
+    .substring(0, 60); // обмеження, щоб не було надто довго
+}
 
 module.exports = async (req, res) => {
+  // (опціонально) можна обмежити метод:
+  // if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
   try {
+    if (!WEBFLOW_API_TOKEN) {
+      return res.status(500).json({ error: 'WEBFLOW_API_TOKEN is not set' });
+    }
+    if (!PE_GATE_API_TOKEN) {
+      return res.status(500).json({ error: 'PE_GATE_API_TOKEN is not set' });
+    }
+
     // 1. Тягнемо дані з твого API
     const apiResponse = await axios.get(
       'https://app.pe-gate.com/api/v1/client-admins/deals',
@@ -18,62 +55,87 @@ module.exports = async (req, res) => {
           Accept: 'application/json',
           'Content-Type': 'application/json',
           'User-Agent': 'PostmanRuntime/7.32.3',
-          'Authorization': `Bearer ${peGateToken}`,
+          Authorization: `Bearer ${PE_GATE_API_TOKEN}`,
         },
       }
     );
 
-    const raw = apiResponse.data;
-    const deals = Array.isArray(raw) ? raw : raw.data || [];
+    let deals = apiResponse.data;
 
-    if (!deals.length) {
-      return res.status(200).json({ message: 'Немає deals з API' });
+    // Якщо бек віддає { data: [...] }, а не [...]:
+    if (!Array.isArray(deals) && Array.isArray(deals?.data)) {
+      deals = deals.data;
     }
 
-    const createdItems = [];
-
-    // 2. Створюємо айтеми в Webflow CMS
-    for (const deal of deals) {
-      const dealItemData = {
-        isArchived: false,
-        isDraft: false,
-        fieldData: {
-          // ОБОВʼЯЗКОВО: Name і Slug
-          name: deal.dealName || 'No name',
-          slug: `deal-${deal.id || Date.now()}`,
-
-          // ДАЛІ — ПОЛЯ З API Reference КОЛЕКЦІЇ
-          // !!!! заміни ці ключі на реальні, які бачиш у Webflow API Reference
-          'dealName': deal.dealName,
-          'dealDescription': deal.dealDescription,
-          'dealTile1Key': deal.dealTile1Key,
-          'dealTile1Value': deal.dealTile1Value,
-          'dealTile2Key': deal.dealTile2Key,
-          'dealTile2Value': deal.dealTile2Value,
-          'dealTile3Key': deal.dealTile3Key,
-          'dealTile3Value': deal.dealTile3Value,
-        },
-      };
-
-      const webflowResponse = await axios.post(webflowApiUrl, dealItemData, {
-        headers: {
-          Authorization: `Bearer ${webflowToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+    if (!Array.isArray(deals)) {
+      return res.status(500).json({
+        error: 'Несподіваний формат відповіді від deals API (очікував масив)',
+        raw: apiResponse.data,
       });
+    }
 
-      console.log('Webflow API Response:', webflowResponse.data);
-      createdItems.push(webflowResponse.data);
+    // 2. Проходимося по кожному deal і створюємо айтем в Webflow
+    const createdItems = [];
+    const errors = [];
+
+    for (const deal of deals) {
+      try {
+        // Тут припускаємо, що в об’єкта є поля типу:
+        // deal.dealName, deal.dealDescription, deal.dealTile1Key, deal.id і т.д.
+        // Якщо назви інші — заміни під себе.
+        const name = deal.dealName || deal.name || 'Deal';
+        const slugBase = slugify(deal.dealName || deal.name || `deal-${Date.now()}`);
+        const slug = `${slugBase}-${deal.id || ''}`.replace(/-+$/g, '');
+
+        const dealItemData = {
+          isArchived: false,
+          isDraft: false,
+          fieldData: {
+            // ОБОВ’ЯЗКОВІ стандартні поля Webflow
+            name, // стандартне поле Name
+            slug, // стандартне поле Slug
+
+            // Кастомні поля (строго по ID з API Reference)
+            [FIELD_IDS.dealName]: deal.dealName,
+            [FIELD_IDS.dealDescription]: deal.dealDescription,
+            [FIELD_IDS.dealTile1Key]: deal.dealTile1Key,
+            [FIELD_IDS.dealTile1Value]: deal.dealTile1Value,
+            [FIELD_IDS.dealTile2Key]: deal.dealTile2Key,
+            [FIELD_IDS.dealTile2Value]: deal.dealTile2Value,
+            [FIELD_IDS.dealTile3Key]: deal.dealTile3Key,
+            [FIELD_IDS.dealTile3Value]: deal.dealTile3Value,
+          },
+        };
+
+        const webflowResponse = await axios.post(webflowApiUrl, dealItemData, {
+          headers: {
+            Authorization: `Bearer ${WEBFLOW_API_TOKEN}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+        });
+
+        createdItems.push(webflowResponse.data);
+      } catch (err) {
+        console.error('Webflow item create error:', err.response?.data || err.message);
+
+        errors.push({
+          dealId: deal.id,
+          error: err.response?.data || err.message,
+        });
+      }
     }
 
     return res.status(200).json({
-      message: 'Deals запушені в Webflow',
-      count: createdItems.length,
-      items: createdItems,
+      message: 'Синхронізація завершена',
+      totalDeals: deals.length,
+      createdItemsCount: createdItems.length,
+      createdItems,
+      errors,
     });
   } catch (error) {
-    console.error('Error:', error.response ? error.response.data : error.message);
+    console.error('Global error:', error.response?.data || error.message);
+
     return res.status(500).json({
       error: 'Щось пішло не так!',
       details: error.response?.data || error.message,
