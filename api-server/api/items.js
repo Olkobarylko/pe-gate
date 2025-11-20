@@ -1,57 +1,30 @@
 const axios = require('axios');
 
-const TEST_ID = "68c1e87046098c5c59d2f4d8";
-
-// API Token для Webflow
+// Ваш API Token для Webflow
 const webflowToken = '27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53';
-const webflowApiUrl = `https://api.webflow.com/collections/${TEST_ID}/items`;
+// Ваш collection_id для Webflow колекції
+const collectionId = '68c1e87046098c5c59d2f4d8'; // Заміни на реальний collection_id
+const webflowApiUrl = `https://api.webflow.com/collections/${collectionId}/items`;
 
 module.exports = async (req, res) => {
   try {
-    // 1. Отримуємо дані з вашого API
-    // const apiResponse = await axios.get('https://app.pe-gate.com/api/v1/client-admins/deals', {
-    //   headers: {
-    //     Accept: 'application/json',
-    //     'Content-Type': 'application/json',
-    //     'User-Agent': 'PostmanRuntime/7.32.3',
-    //     'Authorization': 'Bearer MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl',
-    //   },
-    // });
-
-    // const dealData = apiResponse.data; // Отримуємо дані з вашого API
-
-    // // 2. Формуємо об'єкт для оновлення Webflow CMS
-    // const dealItemData = {
-    //   fields: {
-    //     dealName: dealData.dealName,
-    //     dealDescription: dealData.dealDescription,
-    //     dealTile1Key: dealData.dealTile1Key,
-    //     dealTile1Value: dealData.dealTile1Value,
-    //     dealTile2Key: dealData.dealTile2Key,
-    //     dealTile2Value: dealData.dealTile2Value,
-    //     dealTile3Key: dealData.dealTile3Key,
-    //     dealTile3Value: dealData.dealTile3Value,
-    //   }
-    // };
-
-    // 3. Оновлюємо елемент у Webflow CMS
-    const webflowResponse = await axios.get(`${webflowApiUrl}/{item_id}`, dealItemData, {
+    // Запит для отримання всіх айтемів колекції
+    const response = await axios.get(webflowApiUrl, {
       headers: {
         Authorization: `Bearer ${webflowToken}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'PostmanRuntime/7.32.3',
         Accept: 'application/json',
       },
     });
 
-    // Логування відповіді від Webflow
-    console.log('Webflow API Response:', webflowResponse.data);
+    // Логування отриманих даних
+    console.log('Webflow API Response:', response.data);
 
-    // Відповідаємо на запит
-    res.status(200).json(webflowResponse.data);
+    // Відповідаємо з отриманими даними
+    res.status(200).json(response.data);
   } catch (error) {
     // Обробка помилок
-    console.error('Error:', error.response ? error.response.data : error.message);
+    console.error('Error fetching items from Webflow:', error.response ? error.response.data : error.message);
     res.status(500).json({ error: 'Щось пішло не так!' });
   }
 };
