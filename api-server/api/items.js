@@ -56,10 +56,8 @@ module.exports = async (req, res) => {
     const createdItems = [];
     const errors = [];
 
-    // 2. Створюємо айтеми в Webflow (тільки name + slug)
     for (const deal of deals) {
       try {
-        // Підлаштуй під реальні поля твого deals API:
         const name = deal.dealName || deal.name || 'Deal';
         const slugBase = slugify(deal.dealName || deal.name || `deal-${Date.now()}`);
         const slug = `${slugBase}-${deal.id || ''}`.replace(/-+$/g, '');
@@ -68,10 +66,16 @@ module.exports = async (req, res) => {
           isArchived: false,
           isDraft: false,
           fieldData: {
-            // стандартні поля Webflow (Name + Slug)
             name,
             slug,
-            dealname: deal.dealName
+            dealname: deal.dealName,
+            dealdescription: deal.dealDescription,
+            dealtile1key: deal.dealTile1Key,
+            dealtile1value: deal.dealTile1Value,
+            dealtile2key: deal.dealTile2Key,
+            dealtile2value: deal.dealTile2Value,
+            dealtile3key: deal.dealTile3Key,
+            dealtile3value: deal.dealTile3Value,
           },
         };
 
