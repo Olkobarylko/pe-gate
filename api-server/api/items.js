@@ -1,13 +1,19 @@
-const axios = require("axios");
+// items.js
 
-// Your API Token and URL
+const express = require("express");
+const axios = require("axios");
+const app = express();
+const port = 3000;
+
+// Ваш API Token і URL
 const apiToken =
   "TVrrMU16YzBPRE1jTVRrwR0x6NXK1bTnc1TUY5WFJHddzZkVGR2VRkKUpFQ1VKVkZhVGowd0lVaHVbDhwU1RCU08yzazIg";
 const apiUrl = "https://app.pe-gate.com/api/v1/client-admins/deals";
 
-module.exports = async (req, res) => {
-  console.log("olko test");
+// Маршрут для отримання даних
+app.get("/fetch-deals", async (req, res) => {
   try {
+    // Виконання запиту до API
     const response = await axios.get(apiUrl, {
       headers: {
         Accept: "application/json",
@@ -16,17 +22,24 @@ module.exports = async (req, res) => {
       },
     });
 
-    // Log response data for debugging
-    console.log("Response Data: ", response.data);
+    // Виведення отриманої відповіді
+    console.log("Response Data:", response.data);
 
+    // Повернення отриманих даних клієнту
     res.status(200).json(response.data);
   } catch (error) {
-    // Log more detailed error info
+    // Логування помилок
     console.error(
-      "Error fetching API data: ",
+      "Error fetching API data:",
       error.response ? error.response.data : error.message
     );
 
+    // Повернення помилки клієнту
     res.status(500).json({ error: "Щось пішло не так" });
   }
-};
+});
+
+// Запуск сервера
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});
