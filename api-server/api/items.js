@@ -1,31 +1,27 @@
-// api/sync-deals-to-webflow.js
-
 const axios = require('axios');
 
 // ID колекції Webflow
 const WEBFLOW_COLLECTION_ID = '691f618c34b4f8127ecf1703';
 
-// ⚠️ СЮДИ ВСТАВ СВОЇ ТОКЕНИ
-const WEBFLOW_API_TOKEN = 'ТУТ_ТВІЙ_WEBFLOW_TOKEN';
-const PE_GATE_API_TOKEN = 'ТУТ_ТВІЙ_PE_GATE_TOKEN';
+// ⚠️ СЮДИ ВСТАВ СВОЇ ТОКЕНИ БЕЗ "Bearer " і БЕЗ ПЕРЕНОСІВ РЯДКІВ
+const WEBFLOW_API_TOKEN = '27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53';
+const PE_GATE_API_TOKEN = 'MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl';
 
 // Базовий URL Webflow v2
 const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
 
-// ⚠️ ID полів з API Reference колекції Webflow
-// Зайди в Collection → Settings → API Reference і заміни значення праворуч на свої
+// ⚠️ Заміни ці ID полів на ті, що в API Reference колекції
 const FIELD_IDS = {
-  dealName: 'deal-name',                 // ID поля "Deal Name"
-  dealDescription: 'deal-description',   // ID поля "Deal Description"
-  dealTile1Key: 'deal-tile-1-key',       // ID поля "Tile 1 Key"
-  dealTile1Value: 'deal-tile-1-value',   // ID поля "Tile 1 Value"
+  dealName: 'deal-name',
+  dealDescription: 'deal-description',
+  dealTile1Key: 'deal-tile-1-key',
+  dealTile1Value: 'deal-tile-1-value',
   dealTile2Key: 'deal-tile-2-key',
   dealTile2Value: 'deal-tile-2-value',
   dealTile3Key: 'deal-tile-3-key',
   dealTile3Value: 'deal-tile-3-value',
 };
 
-// Проста функція для slug
 function slugify(str) {
   if (!str) return '';
   return String(str)
@@ -47,14 +43,13 @@ module.exports = async (req, res) => {
           Accept: 'application/json',
           'Content-Type': 'application/json',
           'User-Agent': 'PostmanRuntime/7.32.3',
-          Authorization: `Bearer ${PE_GATE_API_TOKEN}`,
+          Authorization: `Bearer ${PE_GATE_API_TOKEN.trim()}`,
         },
       }
     );
 
     let deals = apiResponse.data;
 
-    // якщо бек повертає { data: [...] }
     if (!Array.isArray(deals) && Array.isArray(deals?.data)) {
       deals = deals.data;
     }
@@ -69,10 +64,8 @@ module.exports = async (req, res) => {
     const createdItems = [];
     const errors = [];
 
-    // 2. Створюємо айтем у Webflow для кожного deal
     for (const deal of deals) {
       try {
-        // тут підлаштуй під реальні поля твого deals API
         const name = deal.dealName || deal.name || 'Deal';
         const slugBase = slugify(deal.dealName || deal.name || `deal-${Date.now()}`);
         const slug = `${slugBase}-${deal.id || ''}`.replace(/-+$/g, '');
@@ -81,11 +74,8 @@ module.exports = async (req, res) => {
           isArchived: false,
           isDraft: false,
           fieldData: {
-            // стандартні поля Webflow
             name,
             slug,
-
-            // кастомні поля з ID з API Reference
             [FIELD_IDS.dealName]: deal.dealName,
             [FIELD_IDS.dealDescription]: deal.dealDescription,
             [FIELD_IDS.dealTile1Key]: deal.dealTile1Key,
@@ -99,7 +89,7 @@ module.exports = async (req, res) => {
 
         const webflowResponse = await axios.post(webflowApiUrl, dealItemData, {
           headers: {
-            Authorization: `Bearer ${WEBFLOW_API_TOKEN}`,
+            Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
@@ -108,7 +98,6 @@ module.exports = async (req, res) => {
         createdItems.push(webflowResponse.data);
       } catch (err) {
         console.error('Помилка створення айтема в Webflow:', err.response?.data || err.message);
-
         errors.push({
           dealId: deal.id,
           error: err.response?.data || err.message,
