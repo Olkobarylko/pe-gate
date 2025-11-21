@@ -10,7 +10,8 @@ const WEBFLOW_API_TOKEN = "27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d814456
 const PE_GATE_API_TOKEN = "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
 
 // Базовый URL Webflow v2 для CMS айтемов (staged items)
-const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items/live`;
+const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
+const webflowApiUrlLive = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items/live`;
 
 // Утилита для slug
 function slugify(str) {
@@ -143,7 +144,7 @@ module.exports = async (req, res) => {
 
         if (existingItem) {
           // 3а. Айтем уже есть — ОБНОВЛЯЕМ (PATCH /collections/{collection_id}/items/{item_id})
-          const updateUrl = `${webflowApiUrl}/${existingItem.id}`;
+          const updateUrl = `${webflowApiUrlLive}/${existingItem.id}`;
 
           const patchBody = {
             cmsLocaleId: dealId,
