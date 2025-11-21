@@ -135,8 +135,6 @@ module.exports = async (req, res) => {
           dealtile3value: deal.dealTile3Value,
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
-          "isArchived": false,
-          "isDraft": false,
           // поле, по которому мы матчимся
           dealid: dealId,
         };
@@ -148,7 +146,11 @@ module.exports = async (req, res) => {
           const updateUrl = `${webflowApiUrl}/${existingItem.id}`;
 
           const patchBody = {
+            cmsLocaleId: dealId,
             isArchived: false,
+            "lastPublished": "2024-09-27T17:38:29.066Z",
+            "lastUpdated": "2024-09-27T17:38:29.066Z",
+            "createdOn": "2024-09-27T17:38:29.066Z",
             isDraft: false,
             fieldData,
           };
