@@ -13,7 +13,6 @@ const PE_GATE_API_TOKEN =
 
 // Базовый URL Webflow v2 для CMS айтемов (staged items)
 const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
-
 // Утилита для slug
 function slugify(str) {
   if (!str) return "";
@@ -56,13 +55,6 @@ async function fetchAllWebflowItems() {
 // Основной handler (например, Next.js /api route)
 module.exports = async (req, res) => {
   try {
-    // 0. Проверим, что токены есть
-    if (!WEBFLOW_API_TOKEN || !PE_GATE_API_TOKEN) {
-      return res.status(500).json({
-        error: "Отсутствуют WEBFLOW_API_TOKEN или PE_GATE_API_TOKEN в env",
-      });
-    }
-
     // 1. Тянем данные из внешнего API (все deals)
     const apiResponse = await axios.get(
       "https://app.pe-gate.com/api/v1/client-admins/deals",
@@ -70,7 +62,6 @@ module.exports = async (req, res) => {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          "User-Agent": "PostmanRuntime/7.32.3",
           Authorization: `Bearer ${PE_GATE_API_TOKEN.trim()}`,
         },
       }
@@ -96,7 +87,7 @@ module.exports = async (req, res) => {
     // Map: dealid(string) -> item
     const itemsByDealId = new Map();
     for (const item of existingItems) {
-      const dealIdValue = item.fieldData?.dealid; // API Name поля в Webflow должен быть "dealid"
+      const dealIdValue = item.fieldData?.dealid; // тут важно, чтобы API Name поля в Webflow был именно "dealid"
       if (dealIdValue != null) {
         itemsByDealId.set(String(dealIdValue), item);
       }
@@ -105,7 +96,6 @@ module.exports = async (req, res) => {
     const createdItems = [];
     const updatedItems = [];
     const errors = [];
-    const itemIdsToPublish = []; // сюда собираем все id для publish
 
     // 3. Проходим по каждому deal и делаем upsert
     for (const deal of deals) {
@@ -134,7 +124,7 @@ module.exports = async (req, res) => {
           name,
           slug,
 
-          // кастомные поля
+          // твои кастомные поля (проверь API Name в Webflow CMS!)
           dealname: deal.dealName,
           dealdescription: deal.dealDescription,
           dealtile1key: deal.dealTile1Key,
@@ -145,6 +135,7 @@ module.exports = async (req, res) => {
           dealtile3value: deal.dealTile3Value,
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
+
           // поле, по которому мы матчимся
           dealid: dealId,
         };
@@ -169,14 +160,10 @@ module.exports = async (req, res) => {
             },
           });
 
-          const itemId = webflowResponse.data?.id || existingItem.id;
-
           updatedItems.push({
             dealId,
-            itemId,
+            itemId: webflowResponse.data.id,
           });
-
-          itemIdsToPublish.push(itemId);
         } else {
           // 3б. Нет айтема с таким dealid — СОЗДАЁМ (POST /collections/{collection_id}/items)
           const createBody = {
@@ -193,14 +180,10 @@ module.exports = async (req, res) => {
             },
           });
 
-          const itemId = webflowResponse.data.id;
-
           createdItems.push({
             dealId,
-            itemId,
+            itemId: webflowResponse.data.id,
           });
-
-          itemIdsToPublish.push(itemId);
         }
       } catch (err) {
         console.error(
@@ -214,42 +197,11 @@ module.exports = async (req, res) => {
       }
     }
 
-    // 4. После upsert — делаем publish для всех созданных/обновлённых айтемов
-    // на всякий случай уберем дубли
-    const uniqueItemIdsToPublish = [...new Set(itemIdsToPublish)];
-
-    if (uniqueItemIdsToPublish.length > 0) {
-      try {
-        const publishResp = await axios.post(
-          `${webflowApiUrl}/publish`,
-          {
-            itemIds: uniqueItemIdsToPublish,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-          }
-        );
-
-        console.log("Publish result:", publishResp.data);
-      } catch (e) {
-        console.error("Помилка при publish:", e.response?.data || e.message);
-        errors.push({
-          step: "publish",
-          error: e.response?.data || e.message,
-        });
-      }
-    }
-
     return res.status(200).json({
-      message: "Синхронизация с Webflow завершена (upsert по dealid + publish)",
+      message: "Синхронизация с Webflow завершена (upsert по dealid)",
       totalDeals: deals.length,
       createdItemsCount: createdItems.length,
       updatedItemsCount: updatedItems.length,
-      publishedItemsCount: uniqueItemIdsToPublish.length,
       createdItems,
       updatedItems,
       errors,
