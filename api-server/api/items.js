@@ -7,12 +7,15 @@ const WEBFLOW_COLLECTION_ID = "691f618c34b4f8127ecf1703";
 
 // Токены берем из env (НЕ хардкодим)
 const WEBFLOW_API_TOKEN =
+  process.env.WEBFLOW_API_TOKEN ||
   "27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53";
 const PE_GATE_API_TOKEN =
+  process.env.PE_GATE_API_TOKEN ||
   "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
 
-// Базовый URL Webflow v2 для CMS айтемов (staged items)
+// Базовый URL Webflow v2 для CMS айтемов
 const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
+const webflowPublishUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items/publish`;
 
 // Утилита для slug
 function slugify(str) {
@@ -96,7 +99,7 @@ module.exports = async (req, res) => {
     // Map: dealid(string) -> item
     const itemsByDealId = new Map();
     for (const item of existingItems) {
-      const dealIdValue = item.fieldData?.dealid; // API Name поля в Webflow должен быть "dealid"
+      const dealIdValue = item.fieldData?.dealid;
       if (dealIdValue != null) {
         itemsByDealId.set(String(dealIdValue), item);
       }
@@ -105,14 +108,13 @@ module.exports = async (req, res) => {
     const createdItems = [];
     const updatedItems = [];
     const errors = [];
-    const itemIdsToPublish = []; // сюда собираем все id для publish
+    const itemIdsToPublish = [];
 
     // 3. Проходим по каждому deal и делаем upsert
     for (const deal of deals) {
       const dealId = String(deal.id ?? "");
 
       if (!dealId) {
-        // Если у deal нет id — пропускаем
         errors.push({
           deal,
           error: "Пропущен deal без id",
@@ -130,11 +132,8 @@ module.exports = async (req, res) => {
 
         // fieldData — имена полей ДОЛЖНЫ 1-в-1 совпадать с API Name в Webflow
         const fieldData = {
-          // стандартные поля
           name,
           slug,
-
-          // кастомные поля
           dealname: deal.dealName,
           dealdescription: deal.dealDescription,
           dealtile1key: deal.dealTile1Key,
@@ -145,14 +144,13 @@ module.exports = async (req, res) => {
           dealtile3value: deal.dealTile3Value,
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
-          // поле, по которому мы матчимся
           dealid: dealId,
         };
 
         const existingItem = itemsByDealId.get(dealId);
 
         if (existingItem) {
-          // 3а. Айтем уже есть — ОБНОВЛЯЕМ (PATCH /collections/{collection_id}/items/{item_id})
+          // 3а. Айтем уже есть — ОБНОВЛЯЕМ
           const updateUrl = `${webflowApiUrl}/${existingItem.id}`;
 
           const patchBody = {
@@ -169,16 +167,19 @@ module.exports = async (req, res) => {
             },
           });
 
-          const itemId = webflowResponse.data?.id || existingItem.id;
+          if (webflowResponse.status >= 200 && webflowResponse.status < 300) {
+            const itemId = webflowResponse.data?.id || existingItem.id;
 
-          updatedItems.push({
-            dealId,
-            itemId,
-          });
+            updatedItems.push({
+              dealId,
+              itemId,
+            });
 
-          itemIdsToPublish.push(itemId);
+            itemIdsToPublish.push(itemId);
+            console.log(`✅ Обновлен айтем для deal ${dealId}, ID: ${itemId}`);
+          }
         } else {
-          // 3б. Нет айтема с таким dealid — СОЗДАЁМ (POST /collections/{collection_id}/items)
+          // 3б. Нет айтема с таким dealid — СОЗДАЁМ
           const createBody = {
             isArchived: false,
             isDraft: false,
@@ -193,35 +194,44 @@ module.exports = async (req, res) => {
             },
           });
 
-          const itemId = webflowResponse.data.id;
+          if (webflowResponse.status >= 200 && webflowResponse.status < 300) {
+            const itemId = webflowResponse.data.id;
 
-          createdItems.push({
-            dealId,
-            itemId,
-          });
+            createdItems.push({
+              dealId,
+              itemId,
+            });
 
-          itemIdsToPublish.push(itemId);
+            itemIdsToPublish.push(itemId);
+            console.log(`✅ Создан айтем для deal ${dealId}, ID: ${itemId}`);
+          }
         }
       } catch (err) {
         console.error(
-          "Ошибка при создании/обновлении айтема в Webflow:",
+          `❌ Ошибка при создании/обновлении айтема для deal ${dealId}:`,
           err.response?.data || err.message
         );
         errors.push({
           dealId,
           error: err.response?.data || err.message,
+          status: err.response?.status,
         });
       }
     }
 
     // 4. После upsert — делаем publish для всех созданных/обновлённых айтемов
-    // на всякий случай уберем дубли
     const uniqueItemIdsToPublish = [...new Set(itemIdsToPublish)];
 
+    let publishResult = null;
     if (uniqueItemIdsToPublish.length > 0) {
       try {
+        console.log(
+          `🚀 Публикую ${uniqueItemIdsToPublish.length} айтемов:`,
+          uniqueItemIdsToPublish
+        );
+
         const publishResp = await axios.post(
-          `${webflowApiUrl}/publish`,
+          webflowPublishUrl,
           {
             itemIds: uniqueItemIdsToPublish,
           },
@@ -234,32 +244,46 @@ module.exports = async (req, res) => {
           }
         );
 
-        console.log("Publish result:", publishResp.data);
+        publishResult = publishResp.data;
+        console.log("✅ Publish успешен:", publishResult);
       } catch (e) {
-        console.error("Помилка при publish:", e.response?.data || e.message);
+        console.error("❌ Ошибка при publish:", {
+          status: e.response?.status,
+          data: e.response?.data,
+          message: e.message,
+        });
         errors.push({
           step: "publish",
           error: e.response?.data || e.message,
+          status: e.response?.status,
         });
       }
+    } else {
+      console.log("ℹ️ Нет айтемов для публикации");
     }
 
     return res.status(200).json({
-      message: "Синхронизация с Webflow завершена (upsert по dealid + publish)",
+      message: "Синхронизация с Webflow завершена",
       totalDeals: deals.length,
       createdItemsCount: createdItems.length,
       updatedItemsCount: updatedItems.length,
       publishedItemsCount: uniqueItemIdsToPublish.length,
       createdItems,
       updatedItems,
+      publishResult,
       errors,
     });
   } catch (error) {
-    console.error("Глобальная ошибка:", error.response?.data || error.message);
+    console.error("❌ Глобальная ошибка:", {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
 
     return res.status(500).json({
       error: "Что-то пошло не так при синхронизации!",
       details: error.response?.data || error.message,
+      status: error.response?.status,
     });
   }
 };
