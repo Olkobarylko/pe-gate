@@ -234,7 +234,7 @@ module.exports = async (req, res) => {
           webflowPublishUrl,
           {
             // ВАЖНО: snake_case, как в доке Webflow v2 (ItemIDs.item_ids)
-            item_ids: uniqueItemIdsToPublish,
+            itemIds: uniqueItemIdsToPublish,
           },
           {
             headers: {
