@@ -15,7 +15,7 @@ const PE_GATE_API_TOKEN =
 
 // Базовый URL Webflow v2 для CMS айтемов
 const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
-const webflowPublishUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items/publish`;
+const webflowPublishUrl = `${webflowApiUrl}/publish`;
 
 // Утилита для slug
 function slugify(str) {
@@ -233,7 +233,8 @@ module.exports = async (req, res) => {
         const publishResp = await axios.post(
           webflowPublishUrl,
           {
-            itemIds: uniqueItemIdsToPublish,
+            // ВАЖНО: snake_case, как в доке Webflow v2 (ItemIDs.item_ids)
+            item_ids: uniqueItemIdsToPublish,
           },
           {
             headers: {
