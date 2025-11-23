@@ -3,7 +3,7 @@
 const axios = require("axios");
 
 // ID коллекции Webflow
-const WEBFLOW_COLLECTION_ID = "68f4c9855bdb636a2b14c2b2";
+const WEBFLOW_COLLECTION_ID = "691f618c34b4f8127ecf1703";
 
 // Токены берем из env (НЕ хардкодим)
 const WEBFLOW_API_TOKEN =
