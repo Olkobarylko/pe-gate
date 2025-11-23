@@ -11,5 +11,9 @@
       "src": "/",
       "dest": "/api/items.js"
     }
-  ]
+  ],
+  "crons": [{
+    "path": "api/items.js",
+    "schedule": "0 6 * * *"
+  }]
 }
