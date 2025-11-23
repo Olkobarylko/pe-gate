@@ -10,8 +10,6 @@ const WEBFLOW_API_TOKEN =
   "27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53";
 const PE_GATE_API_TOKEN =
   "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
-
-// api/sync-deals-to-webflow.js
 // Базові URL Webflow v2
 const WEBFLOW_BASE = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}`;
 const webflowItemsUrl = `${WEBFLOW_BASE}/items`; // GET: всі айтеми (staged)
