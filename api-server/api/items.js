@@ -10,14 +10,13 @@ const WEBFLOW_API_TOKEN =
   "27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53";
 const PE_GATE_API_TOKEN =
   "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
+
 // Базові URL Webflow v2
 const WEBFLOW_BASE = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}`;
 const webflowItemsUrl = `${WEBFLOW_BASE}/items`; // GET: всі айтеми (staged)
 const webflowItemsLiveCreateUrl = `${WEBFLOW_BASE}/items/live`; // POST: створити live
-const webflowItemsLiveUpdateUrl = (itemId) =>
-  `${WEBFLOW_BASE}/items/${itemId}/live`; // PATCH: оновити live
 
-// Простий slugify
+// Простий slug
 function slugify(str) {
   if (!str) return "";
   return String(str)
@@ -49,17 +48,50 @@ async function fetchAllWebflowItems() {
 
     const total = pagination?.total ?? items.length;
     offset += limit;
-
     if (!pagination || offset >= total) break;
   }
 
   return allItems;
 }
 
-// Основний handler (Next.js route / Express handler)
+// НОВЕ: перед синком – повністю чистимо колекцію (видаляємо всі staged items)
+async function deleteAllWebflowItems() {
+  const items = await fetchAllWebflowItems();
+  if (!items.length) return { deletedCount: 0 };
+
+  // Webflow DELETE /v2/collections/:id/items приймає список items[id]
+  // переробимо на чанки по 100 на всякий випадок
+  const chunkSize = 100;
+  let deletedCount = 0;
+
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const body = {
+      items: chunk.map((item) => ({ id: item.id })),
+    };
+
+    await axios.delete(webflowItemsUrl, {
+      headers: {
+        Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      data: body, // важливо: axios передає body через поле `data` для DELETE
+    });
+
+    deletedCount += chunk.length;
+  }
+
+  return { deletedCount };
+}
+
+// Основний handler (наприклад, для Next.js /api route)
 module.exports = async (req, res) => {
   try {
-    // 1. Тягнемо всі deals із зовнішнього API
+    // 0. Чистимо колекцію в Webflow
+    const deleteResult = await deleteAllWebflowItems();
+
+    // 1. Тягнемо всі deals з зовнішнього API
     const apiResponse = await axios.get(
       "https://app.pe-gate.com/api/v1/client-admins/deals",
       {
@@ -67,14 +99,12 @@ module.exports = async (req, res) => {
           Accept: "application/json",
           "Content-Type": "application/json",
           "User-Agent": "PostmanRuntime/7.32.3",
-          Authorization: `Bearer ${PE_GATE_API_TOKEN?.trim()}`,
+          Authorization: `Bearer ${PE_GATE_API_TOKEN.trim()}`,
         },
       }
     );
 
     let deals = apiResponse.data;
-
-    // Якщо бек вернув { data: [...] }
     if (!Array.isArray(deals) && Array.isArray(deals?.data)) {
       deals = deals.data;
     }
@@ -86,34 +116,12 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 2. Тягнемо всі айтеми з Webflow і будуємо мапи:
-    //  - по кастомному полю dealid
-    //  - по slug (fieldData.slug у v2)
-    const existingItems = await fetchAllWebflowItems();
-
-    const itemsByDealId = new Map();
-    const itemsBySlug = new Map();
-
-    for (const item of existingItems) {
-      const dealIdValue = item.fieldData?.dealid;
-      if (dealIdValue != null) {
-        itemsByDealId.set(String(dealIdValue), item);
-      }
-
-      const itemSlug = item.fieldData?.slug;
-      if (itemSlug) {
-        itemsBySlug.set(String(itemSlug), item);
-      }
-    }
-
     const createdItems = [];
-    const updatedItems = [];
     const errors = [];
 
-    // 3. Upsert по кожному deal (create / update) + одразу live
+    // 2. Просто створюємо НОВІ live-айтеми для КОЖНОГО deal
     for (const deal of deals) {
       const dealId = String(deal.id ?? "");
-
       if (!dealId) {
         errors.push({
           deal,
@@ -125,18 +133,15 @@ module.exports = async (req, res) => {
       try {
         const name = deal.dealName || deal.name || "Deal";
 
-        // slug рахуємо ОДИН раз
+        // slug стабільно прив’язаний до dealId (тепер колекція пуста – конфліктів бути не повинно)
         const slugBase =
           slugify(deal.dealName || deal.name || `deal-${dealId}`) || "deal";
         const slug = `${slugBase}-${dealId}`.replace(/-+$/g, "");
 
-        // fieldData: API Name полів МАЄ збігатися з API Name у Webflow CMS
+        // fieldData: імена полів мусять збігатися з API Name в CMS
         const fieldData = {
-          // стандартні поля
           name,
           slug,
-
-          // кастомні поля
           dealname: deal.dealName,
           dealdescription: deal.dealDescription,
           dealtile1key: deal.dealTile1Key,
@@ -147,68 +152,34 @@ module.exports = async (req, res) => {
           dealtile3value: deal.dealTile3Value,
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
-
-          // ключове поле для upsert
           dealid: dealId,
         };
 
-        // Спочатку шукаємо айтем по dealid
-        const existingItemById = itemsByDealId.get(dealId);
-        // Якщо не знайшли по dealid, пробуємо знайти по slug
-        const existingItemBySlug = itemsBySlug.get(slug);
+        const createBody = {
+          isArchived: false,
+          isDraft: false,
+          fieldData,
+        };
 
-        const existingItem = existingItemById || existingItemBySlug;
-
-        if (existingItem) {
-          // 3a. Айтем уже є — ОНОВЛЮЄМО live
-          const updateUrl = webflowItemsLiveUpdateUrl(existingItem.id);
-
-          const patchBody = {
-            isArchived: false,
-            isDraft: false,
-            fieldData,
-          };
-
-          const webflowResponse = await axios.patch(updateUrl, patchBody, {
+        const webflowResponse = await axios.post(
+          webflowItemsLiveCreateUrl,
+          createBody,
+          {
             headers: {
               Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
               "Content-Type": "application/json",
               Accept: "application/json",
             },
-          });
+          }
+        );
 
-          updatedItems.push({
-            dealId,
-            itemId: webflowResponse.data.id,
-          });
-        } else {
-          // 3б. Немає такого dealid/slug — СТВОРЮЄМО новий live-айтем
-          const createBody = {
-            isArchived: false,
-            isDraft: false,
-            fieldData,
-          };
-
-          const webflowResponse = await axios.post(
-            webflowItemsLiveCreateUrl,
-            createBody,
-            {
-              headers: {
-                Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-            }
-          );
-
-          createdItems.push({
-            dealId,
-            itemId: webflowResponse.data.id,
-          });
-        }
+        createdItems.push({
+          dealId,
+          itemId: webflowResponse.data.id,
+        });
       } catch (err) {
         console.error(
-          "[sync-deals-to-webflow] Помилка при створенні/оновленні LIVE-айтема в Webflow:",
+          "Помилка при створенні LIVE-айтема в Webflow:",
           err.response?.data || err.message
         );
         errors.push({
@@ -219,20 +190,16 @@ module.exports = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: "Синхронізація з Webflow завершена (upsert + одразу live)",
+      message:
+        "Повна синхронізація з Webflow завершена: колекція очищена, айтеми створені заново (live)",
       totalDeals: deals.length,
+      deletedItemsCount: deleteResult.deletedCount,
       createdItemsCount: createdItems.length,
-      updatedItemsCount: updatedItems.length,
       createdItems,
-      updatedItems,
       errors,
     });
   } catch (error) {
-    console.error(
-      "[sync-deals-to-webflow] Глобальна помилка:",
-      error.response?.data || error.message
-    );
-
+    console.error("Глобальна помилка:", error.response?.data || error.message);
     return res.status(500).json({
       error: "Щось пішло не так при синхронізації!",
       details: error.response?.data || error.message,
