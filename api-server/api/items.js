@@ -153,6 +153,8 @@ module.exports = async (req, res) => {
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
           dealid: dealId,
+          dealstatus: deal.status,
+          dealdate: deal.createdAt,
         };
 
         const createBody = {
