@@ -12,10 +12,9 @@ const WEBFLOW_API_TOKEN =
 const PE_GATE_API_TOKEN =
   process.env.PE_GATE_API_TOKEN ||
   "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
-
-// Базовый URL Webflow v2 для CMS айтемов
-const webflowApiUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
-const webflowPublishUrl = `${webflowApiUrl}/publish`;
+// Базовые URL Webflow v2 для CMS айтемов
+const webflowItemsBaseUrl = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`;
+const webflowItemsLiveUrl = `${webflowItemsBaseUrl}/live`;
 
 // Утилита для slug
 function slugify(str) {
@@ -36,7 +35,7 @@ async function fetchAllWebflowItems() {
   const limit = 100;
 
   while (true) {
-    const resp = await axios.get(webflowApiUrl, {
+    const resp = await axios.get(webflowItemsBaseUrl, {
       params: { limit, offset },
       headers: {
         Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
@@ -108,9 +107,8 @@ module.exports = async (req, res) => {
     const createdItems = [];
     const updatedItems = [];
     const errors = [];
-    const itemIdsToPublish = [];
 
-    // 3. Проходим по каждому deal и делаем upsert
+    // 3. Проходим по каждому deal и делаем upsert (СРАЗУ В LIVE)
     for (const deal of deals) {
       const dealId = String(deal.id ?? "");
 
@@ -150,8 +148,8 @@ module.exports = async (req, res) => {
         const existingItem = itemsByDealId.get(dealId);
 
         if (existingItem) {
-          // 3а. Айтем уже есть — ОБНОВЛЯЕМ
-          const updateUrl = `${webflowApiUrl}/${existingItem.id}`;
+          // 3а. Айтем уже есть — ОБНОВЛЯЕМ LIVE
+          const updateUrl = `${webflowItemsBaseUrl}/${existingItem.id}/live`;
 
           const patchBody = {
             isArchived: false,
@@ -175,24 +173,29 @@ module.exports = async (req, res) => {
               itemId,
             });
 
-            itemIdsToPublish.push(itemId);
-            console.log(`✅ Обновлен айтем для deal ${dealId}, ID: ${itemId}`);
+            console.log(
+              `✅ Обновлен LIVE-айтем для deal ${dealId}, ID: ${itemId}`
+            );
           }
         } else {
-          // 3б. Нет айтема с таким dealid — СОЗДАЁМ
+          // 3б. Нет айтема с таким dealid — СОЗДАЁМ СРАЗУ LIVE
           const createBody = {
             isArchived: false,
             isDraft: false,
             fieldData,
           };
 
-          const webflowResponse = await axios.post(webflowApiUrl, createBody, {
-            headers: {
-              Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-          });
+          const webflowResponse = await axios.post(
+            webflowItemsLiveUrl,
+            createBody,
+            {
+              headers: {
+                Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+            }
+          );
 
           if (webflowResponse.status >= 200 && webflowResponse.status < 300) {
             const itemId = webflowResponse.data.id;
@@ -202,8 +205,9 @@ module.exports = async (req, res) => {
               itemId,
             });
 
-            itemIdsToPublish.push(itemId);
-            console.log(`✅ Создан айтем для deal ${dealId}, ID: ${itemId}`);
+            console.log(
+              `✅ Создан LIVE-айтем для deal ${dealId}, ID: ${itemId}`
+            );
           }
         }
       } catch (err) {
@@ -219,59 +223,18 @@ module.exports = async (req, res) => {
       }
     }
 
-    // 4. После upsert — делаем publish для всех созданных/обновлённых айтемов
-    const uniqueItemIdsToPublish = [...new Set(itemIdsToPublish)];
-
-    let publishResult = null;
-    if (uniqueItemIdsToPublish.length > 0) {
-      try {
-        console.log(
-          `🚀 Публикую ${uniqueItemIdsToPublish.length} айтемов:`,
-          uniqueItemIdsToPublish
-        );
-
-        const publishResp = await axios.post(
-          webflowPublishUrl,
-          {
-            // ВАЖНО: snake_case, как в доке Webflow v2 (ItemIDs.item_ids)
-            itemIds: uniqueItemIdsToPublish,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${WEBFLOW_API_TOKEN.trim()}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-          }
-        );
-
-        publishResult = publishResp.data;
-        console.log("✅ Publish успешен:", publishResult);
-      } catch (e) {
-        console.error("❌ Ошибка при publish:", {
-          status: e.response?.status,
-          data: e.response?.data,
-          message: e.message,
-        });
-        errors.push({
-          step: "publish",
-          error: e.response?.data || e.message,
-          status: e.response?.status,
-        });
-      }
-    } else {
-      console.log("ℹ️ Нет айтемов для публикации");
-    }
+    // 4. Паблиш больше не нужен — мы уже работаем с LIVE айтемами
+    const publishedItemsCount = createdItems.length + updatedItems.length;
 
     return res.status(200).json({
-      message: "Синхронизация с Webflow завершена",
+      message: "Синхронизация с Webflow завершена (LIVE items)",
       totalDeals: deals.length,
       createdItemsCount: createdItems.length,
       updatedItemsCount: updatedItems.length,
-      publishedItemsCount: uniqueItemIdsToPublish.length,
+      publishedItemsCount, // для совместимости с прежним ответом
       createdItems,
       updatedItems,
-      publishResult,
+      publishResult: null,
       errors,
     });
   } catch (error) {
