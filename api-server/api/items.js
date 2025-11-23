@@ -56,7 +56,7 @@ async function fetchAllWebflowItems() {
   return allItems;
 }
 
-// Основний handler (Next.js /api route або звичайний express handler)
+// Основний handler (Next.js route / Express handler)
 module.exports = async (req, res) => {
   try {
     // 1. Тягнемо всі deals із зовнішнього API
@@ -88,7 +88,7 @@ module.exports = async (req, res) => {
 
     // 2. Тягнемо всі айтеми з Webflow і будуємо мапи:
     //  - по кастомному полю dealid
-    //  - по slug
+    //  - по slug (fieldData.slug у v2)
     const existingItems = await fetchAllWebflowItems();
 
     const itemsByDealId = new Map();
@@ -100,8 +100,9 @@ module.exports = async (req, res) => {
         itemsByDealId.set(String(dealIdValue), item);
       }
 
-      if (item.slug) {
-        itemsBySlug.set(String(item.slug), item);
+      const itemSlug = item.fieldData?.slug;
+      if (itemSlug) {
+        itemsBySlug.set(String(itemSlug), item);
       }
     }
 
@@ -124,8 +125,7 @@ module.exports = async (req, res) => {
       try {
         const name = deal.dealName || deal.name || "Deal";
 
-        // *** ВАЖЛИВО ***
-        // slug рахуємо ОДИН раз і використовуємо і для пошуку, і для fieldData
+        // slug рахуємо ОДИН раз
         const slugBase =
           slugify(deal.dealName || deal.name || `deal-${dealId}`) || "deal";
         const slug = `${slugBase}-${dealId}`.replace(/-+$/g, "");
