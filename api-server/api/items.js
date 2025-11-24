@@ -3,13 +3,11 @@
 const axios = require("axios");
 
 // ID колекції Webflow
-const WEBFLOW_COLLECTION_ID = "691f618c34b4f8127ecf1703";
+const WEBFLOW_COLLECTION_ID = env.WEBFLOW_COLLECTION_ID;
 
 // ТВОЇ ТОКЕНИ (як ти й давав)
-const WEBFLOW_API_TOKEN =
-  "27a1da0aeecafa64480b31bd281d1ba1224ad1095e9418d8144567e6cddfea53";
-const PE_GATE_API_TOKEN =
-  "MTk1Mzc0ODIwMTpTfHxYZH1wP3BiIUg1dChTa1B2JHxrUXJ1bUc5TlQ2VkZmYD5eWWMl";
+const WEBFLOW_API_TOKEN = env.WEBFLOW_API_TOKEN;
+const PE_GATE_API_TOKEN = env.PE_GATE_API_TOKEN;
 
 // Базові URL Webflow v2
 const WEBFLOW_BASE = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}`;
@@ -153,7 +151,7 @@ module.exports = async (req, res) => {
           dealoverviewcontent: deal.dealOverviewContent,
           "dealbackgroundimg-2": deal.dealBackgroundImg,
           dealid: dealId,
-          dealstatus: deal.status,
+          dealstatus: deal.dealStatus,
           dealdate: deal.createdAt,
         };
 
