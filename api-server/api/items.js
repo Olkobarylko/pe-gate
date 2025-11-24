@@ -2,12 +2,11 @@
 
 const axios = require("axios");
 
-// ID колекції Webflow
-const WEBFLOW_COLLECTION_ID = env.WEBFLOW_COLLECTION_ID;
-
-// ТВОЇ ТОКЕНИ (як ти й давав)
-const WEBFLOW_API_TOKEN = env.WEBFLOW_API_TOKEN;
-const PE_GATE_API_TOKEN = env.PE_GATE_API_TOKEN;
+const {
+  WEBFLOW_COLLECTION_ID,
+  WEBFLOW_API_TOKEN,
+  PE_GATE_API_TOKEN,
+} = process.env;
 
 // Базові URL Webflow v2
 const WEBFLOW_BASE = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}`;
