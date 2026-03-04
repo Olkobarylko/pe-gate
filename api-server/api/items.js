@@ -10,7 +10,7 @@ const {
 
 // Базові URL Webflow v2
 const WEBFLOW_BASE = `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}`;
-const webflowItemsUrl = `${WEBFLOW_BASE}/items`; // GET: всі айтеми (staged)
+const webflowItemsUrl = `${WEBFLOW_BASE}/items/live`; // GET + DELETE: live айтеми
 const webflowItemsLiveCreateUrl = `${WEBFLOW_BASE}/items/live`; // POST: створити live
 
 // Простий slug
